@@ -8,14 +8,11 @@ import { AppError } from "../utils/appError";
 import { UserValidatorClass } from "../validators/userValidator";
 import { validate } from "class-validator";
 import { ChangePasswordValidatorClass } from "../validators/changePasswordValidator";
-import { checkUserExists } from "../helper/auth.helper";
 
 const authController = {
   signup: async (req: Request, res: Response, next: NextFunction) => {
     const { firstName, lastName, email, password, role, address } = req.body
-
     try {
-
       let inputData = new UserValidatorClass()
       inputData.firstName = firstName
       inputData.lastName = lastName
@@ -27,10 +24,8 @@ const authController = {
       const errors = await validate(inputData, { groups: ['add'] })
 
       if (errors?.length) {
-        console.log("error", errors)
         return next(new AppError(`Bad request`, 400))
       }
-
       const user = await User.create(req.body)
       return res.status(201).json({ message: "user registerd.", user: user });
 
@@ -53,20 +48,19 @@ const authController = {
         return res.status(401).json({ message: "Invalid username or password" });
       }
 
-      // const token = user.generateAuthToken();
+      const token = user.generateAuthToken();
 
-      // // Increments the login count for the user
-      // await user.incrementLoginCount();
+      // Increments the login count for the user
+      await user.incrementLoginCount();
 
-      // res.cookie("token", token, {
-      //   httpOnly: true,
-      //   sameSite: "strict",
-      //   secure: false,
-      // });
+      res.cookie("token", token, {
+        httpOnly: true,
+        sameSite: "strict",
+        secure: false,
+      });
 
       return res.json({ message: "Login Success", status: 1 });
     } catch (error: any) {
-      console.log("error", error)
       return next(
         new AppError(error.message, 400)
       );
@@ -76,7 +70,7 @@ const authController = {
   forgotPassword: async (req: Request, res: Response, next: NextFunction) => {
     const { email } = req.body;
     if (!email) {
-      throw new Error(`email required!`);
+      return next(new AppError('email required!', 400))
     }
     try {
       const user = await User.findOne({ email });
@@ -112,7 +106,7 @@ const authController = {
       const pswdResetToken = await Token.findOne({ userId });
       if (!pswdResetToken) {
         return next(
-          new AppError("Invalid or expired password reset token", 400)
+          new AppError("Expired password reset token", 400)
         );
       }
 
@@ -126,7 +120,7 @@ const authController = {
       const updatedUser = await User.findByIdAndUpdate(userId, { password: hash }, { new: true });
       await pswdResetToken.deleteOne();
       return res.json({
-        message: "Password Reset Successfully ",
+        message: "Password Reset Successfully",
         user: updatedUser,
       });
     } catch (error: any) {
@@ -145,7 +139,7 @@ const authController = {
       const errors = await validate(passwordInput)
 
       if (errors?.length) {
-        console.log("error", errors)
+        // console.log("error", errors)
         return next(new AppError(`Bad request`, 400))
       }
       const hash = await bcrypt.hash(password, Number(process.env.BCRYPT_SALT));
